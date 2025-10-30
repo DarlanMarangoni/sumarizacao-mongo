@@ -1,0 +1,4 @@
+GET http://localhost:8080/api/sumarization?document=3591948487
+Accept: application/json
+
+###
