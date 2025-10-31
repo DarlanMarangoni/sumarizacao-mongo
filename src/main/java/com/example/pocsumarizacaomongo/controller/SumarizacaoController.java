@@ -1,19 +1,18 @@
 package com.example.pocsumarizacaomongo.controller;
 
+import com.example.pocsumarizacaomongo.dto.CreateDto;
+import com.example.pocsumarizacaomongo.dto.Pix;
 import com.example.pocsumarizacaomongo.dto.SumarizatuionDto.Sumarization;
+import com.example.pocsumarizacaomongo.dto.Transaction;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.*;
 import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
@@ -33,13 +32,9 @@ public class SumarizacaoController {
         LocalDateTime now = LocalDateTime.now();
         ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
 
-        Instant oneHour = Instant.from(now.minusHours(1).atZone(ZoneOffset.UTC).toInstant().atZone(ZoneId.of("America/Sao_Paulo")));
-        Instant sixHours = Instant.from(now.minusHours(6).atZone(ZoneOffset.UTC).toInstant().atZone(ZoneId.of("America/Sao_Paulo")));
-        Instant oneDay = Instant.from(now.minusHours(24).atZone(ZoneOffset.UTC).toInstant().atZone(ZoneId.of("America/Sao_Paulo")));
-
-        Callable<BigDecimal> task1 = () -> new BigDecimal(getByInstant(oneHour, document));
-        Callable<BigDecimal> task2 = () -> new BigDecimal(getByInstant(sixHours, document));
-        Callable<BigDecimal> task3 = () -> new BigDecimal(getByInstant(oneDay, document));
+        Callable<BigDecimal> task1 = () -> new BigDecimal(getByInstant(now.minusHours(1), document));
+        Callable<BigDecimal> task2 = () -> new BigDecimal(getByInstant(now.minusHours(6), document));
+        Callable<BigDecimal> task3 = () -> new BigDecimal(getByInstant(now.minusHours(24), document));
 
         List<Future<BigDecimal>> futures = executor.invokeAll(List.of(task1, task2, task3));
 
@@ -48,7 +43,21 @@ public class SumarizacaoController {
                 futures.get(2).get());
     }
 
-    private String getByInstant(Instant minDate, String document) {
+    @PostMapping("/sumarization")
+    private void create(@RequestBody CreateDto createDto) {
+
+        Transaction[] transactions = new Transaction[createDto.amount()];
+
+        for (int i = 0; i < createDto.amount(); i++) {
+            transactions[i] = new Transaction(
+                    1.0,
+                    LocalDateTime.now().toInstant(ZoneOffset.UTC)
+            );
+        }
+        mongoTemplate.save(new Pix(createDto.document(), LocalDateTime.now(), Arrays.stream(transactions).toList()));
+    }
+
+    private String getByInstant(LocalDateTime minDate, String document) {
         // 1 - match: filtra o documento principal
         MatchOperation matchDocument = Aggregation.match(Criteria.where("document").is(document));
 
@@ -57,7 +66,7 @@ public class SumarizacaoController {
 
         // 3 - match: filtra transações por data
         MatchOperation matchDate = Aggregation.match(
-                Criteria.where("transactions.createdAt").gte(minDate)
+                Criteria.where("transactions.createdAt").gte(minDate.toInstant(ZoneOffset.UTC))
         );
 
         // 4 - group: soma e pega a última transação

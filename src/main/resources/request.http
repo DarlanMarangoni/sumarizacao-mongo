@@ -1,4 +1,13 @@
-GET http://localhost:8080/api/sumarization?document=3591948487
+POST http://localhost:8080/api/sumarization
+Content-Type: application/json
+
+{
+  "document": "35919484894",
+  "amount": 150000
+}
+
+###
+GET http://localhost:8080/api/sumarization?document=35919484894
 Accept: application/json
 
 ###
